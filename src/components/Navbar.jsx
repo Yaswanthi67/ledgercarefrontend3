@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -33,6 +33,7 @@ export default function Navbar() {
     { name: 'Home', path: '/' },
     { name: 'Campaigns', path: '/campaigns' },
     { name: 'Charities', path: '/charities' },
+    { name: 'Register Charity', path: '/charity/register' },
     { name: 'Transparency', path: '/transparency/blockchain' },
     { name: 'About', path: '/about' },
   ];
