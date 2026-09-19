@@ -1,44 +1,27 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useWallet } from '../context/WalletContext';
-import { shortenAddress, formatEth } from '../utils/formatters';
-import { TARGET_CHAIN_ID, NETWORKS } from '../config/contracts';
+import { useAuth } from '../context/AuthContext';
 import {
   Shield,
-  Wallet,
   Menu,
   X,
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  ChevronDown,
-  LogOut,
-  Building2,
   HeartHandshake,
-  FileCheck2,
+  Building2,
   Lock,
-  Smartphone,
+  ChevronDown,
+  User,
+  Heart,
+  FileCheck2,
+  FileText,
+  Activity,
+  Layers,
 } from 'lucide-react';
 
 export default function Navbar() {
-  const {
-    account,
-    balance,
-    chainId,
-    isConnecting,
-    isCorrectNetwork,
-    connectWallet,
-    disconnectWallet,
-    switchNetwork,
-    userRole,
-    isCharityVerified,
-  } = useWallet();
-
+  const { role, switchRole, isDonor, isCharity, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [walletDropdownOpen, setWalletDropdownOpen] = useState(false);
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const location = useLocation();
-
-  const targetNetwork = NETWORKS[TARGET_CHAIN_ID] || { chainName: `Chain ${TARGET_CHAIN_ID}` };
 
   const isActive = (path) => {
     if (path === '/' && location.pathname === '/') return true;
@@ -49,316 +32,400 @@ export default function Navbar() {
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Campaigns', path: '/campaigns' },
-    { name: 'Donor Hub', path: '/donor' },
-    { name: 'Charity Portal', path: '/charity' },
-    { name: 'Evidence Verifier', path: '/verify' },
-    { name: 'Admin', path: '/admin' },
+    { name: 'Charities', path: '/charities' },
+    { name: 'Transparency', path: '/transparency/blockchain' },
+    { name: 'About', path: '/about' },
   ];
 
+  const roleConfig = {
+    donor: { label: 'Donor Mode', color: '#60a5fa', icon: <Heart size={13} /> },
+    charity: { label: 'Charity Portal', color: '#34d399', icon: <Building2 size={13} /> },
+    admin: { label: 'Admin Monitor', color: '#a855f7', icon: <Lock size={13} /> },
+  };
+
+  const currentRoleConfig = roleConfig[role] || roleConfig.donor;
+
   return (
-    <>
-      {/* Wrong Network Warning Banner */}
-      {account && !isCorrectNetwork && (
-        <div style={{
-          background: 'linear-gradient(90deg, #dc2626 0%, #b91c1c 100%)',
-          color: '#ffffff',
-          padding: '0.6rem 1rem',
-          fontSize: '0.85rem',
-          textAlign: 'center',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.75rem',
-          zIndex: 100,
-        }}>
-          <AlertTriangle size={18} />
-          <span>
-            Wrong network detected (Chain ID: {chainId || 'Unknown'}). Please switch to{' '}
-            <strong>{targetNetwork.chainName}</strong> (Chain ID: {TARGET_CHAIN_ID}).
-          </span>
-          <button
-            onClick={() => switchNetwork(TARGET_CHAIN_ID)}
-            style={{
-              background: '#ffffff',
-              color: '#991b1b',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '0.2rem 0.65rem',
-              fontWeight: '700',
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-            }}
-          >
-            Switch Network
-          </button>
-        </div>
-      )}
-
-      <header style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        background: 'rgba(7, 11, 20, 0.85)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid var(--border-subtle)',
+    <header style={{
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
+      background: 'rgba(7, 11, 20, 0.88)',
+      backdropFilter: 'blur(16px)',
+      borderBottom: '1px solid var(--border-subtle)',
+    }}>
+      <div style={{
+        maxWidth: '1280px',
+        margin: '0 auto',
+        padding: '0.85rem 1.5rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}>
-        <div style={{
-          maxWidth: '1280px',
-          margin: '0 auto',
-          padding: '0.85rem 1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(59, 130, 246, 0.4)',
-            }}>
-              <Shield size={22} color="#ffffff" />
+        {/* Brand Logo */}
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 15px rgba(16, 185, 129, 0.35)',
+          }}>
+            <Shield size={22} color="#ffffff" />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#ffffff' }}>
+                Ledger<span style={{ color: '#10b981' }}>Care</span>
+              </span>
+              <span style={{
+                fontSize: '0.65rem',
+                fontWeight: '700',
+                padding: '0.15rem 0.45rem',
+                borderRadius: '4px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+              }}>
+                VERIFIED
+              </span>
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.02em', color: '#ffffff' }}>
-                  Ledger<span style={{ color: '#60a5fa' }}>Care</span>
-                </span>
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: '700',
-                  padding: '0.15rem 0.4rem',
-                  borderRadius: '4px',
-                  background: 'rgba(59, 130, 246, 0.15)',
-                  color: '#93c5fd',
-                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                }}>
-                  WEB3
-                </span>
-              </div>
-              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                Transparent Charity Management
-              </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+              Transparent Charity Management
             </div>
-          </Link>
+          </div>
+        </Link>
 
-          {/* Desktop Navigation Links */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} className="desktop-nav">
-            {navLinks.map((link) => (
+        {/* Main Navigation Links */}
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} className="desktop-nav">
+          {navLinks.map((link) => (
+            <Link
+              key={link.path}
+              to={link.path}
+              style={{
+                padding: '0.45rem 0.8rem',
+                fontSize: '0.88rem',
+                fontWeight: '500',
+                borderRadius: 'var(--radius-sm)',
+                color: isActive(link.path) ? '#ffffff' : 'var(--text-secondary)',
+                background: isActive(link.path) ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {link.name}
+            </Link>
+          ))}
+
+          {/* Conditional links based on active role */}
+          {isDonor && (
+            <>
               <Link
-                key={link.path}
-                to={link.path}
+                to="/dashboard"
                 style={{
-                  padding: '0.5rem 0.85rem',
+                  padding: '0.45rem 0.8rem',
+                  fontSize: '0.88rem',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-sm)',
+                  color: isActive('/dashboard') ? '#34d399' : '#6ee7b7',
+                  background: isActive('/dashboard') ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                }}
+              >
+                Donor Dashboard
+              </Link>
+              <Link
+                to="/donations"
+                style={{
+                  padding: '0.45rem 0.8rem',
                   fontSize: '0.88rem',
                   fontWeight: '500',
                   borderRadius: 'var(--radius-sm)',
-                  color: isActive(link.path) ? '#ffffff' : 'var(--text-secondary)',
-                  background: isActive(link.path) ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
-                  transition: 'all 0.2s ease',
+                  color: isActive('/donations') ? '#ffffff' : 'var(--text-secondary)',
+                  background: isActive('/donations') ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                 }}
               >
-                {link.name}
+                My Donations
               </Link>
-            ))}
-          </nav>
+            </>
+          )}
 
-          {/* Wallet Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {account ? (
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setWalletDropdownOpen(!walletDropdownOpen)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    background: 'rgba(30, 41, 59, 0.7)',
-                    border: '1px solid var(--border-subtle)',
-                    padding: '0.45rem 0.9rem',
-                    borderRadius: 'var(--radius-full)',
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                  }}
-                >
-                  {/* Role indicator pill */}
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    fontSize: '0.7rem',
-                    fontWeight: '700',
-                    padding: '0.15rem 0.5rem',
-                    borderRadius: 'var(--radius-full)',
-                    background: isCharityVerified
-                      ? 'rgba(16, 185, 129, 0.2)'
-                      : 'rgba(59, 130, 246, 0.2)',
-                    color: isCharityVerified ? '#34d399' : '#60a5fa',
-                  }}>
-                    {isCharityVerified ? <Building2 size={12} /> : <HeartHandshake size={12} />}
-                    {isCharityVerified ? 'Charity Wallet' : 'Admin Wallet'}
-                  </span>
+          {isCharity && (
+            <>
+              <Link
+                to="/charity/dashboard"
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  fontSize: '0.88rem',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-sm)',
+                  color: isActive('/charity') ? '#34d399' : '#6ee7b7',
+                  background: isActive('/charity') ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                }}
+              >
+                Charity Dashboard
+              </Link>
+              <Link
+                to="/charity/campaigns"
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  fontSize: '0.88rem',
+                  fontWeight: '500',
+                  borderRadius: 'var(--radius-sm)',
+                  color: isActive('/charity/campaigns') ? '#ffffff' : 'var(--text-secondary)',
+                }}
+              >
+                Manage
+              </Link>
+            </>
+          )}
 
-                  <span className="font-mono">{shortenAddress(account)}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                    {formatEth(balance, 3)} ETH
-                  </span>
-                  <ChevronDown size={14} color="#94a3b8" />
-                </button>
-
-                {/* Dropdown Menu */}
-                {walletDropdownOpen && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      marginTop: '0.5rem',
-                      width: '260px',
-                      background: '#0f172a',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-md)',
-                      boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
-                      padding: '0.75rem',
-                      zIndex: 60,
-                    }}
-                  >
-                    <div style={{ padding: '0.5rem 0.5rem 0.75rem', borderBottom: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Charity / Admin Wallet</div>
-                      <div className="font-mono" style={{ fontSize: '0.85rem', fontWeight: '600', color: '#ffffff', wordBreak: 'break-all' }}>
-                        {account}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: '#34d399', marginTop: '0.35rem' }}>
-                        Balance: <strong>{formatEth(balance, 4)} ETH</strong>
-                      </div>
-                    </div>
-
-                    <div style={{ padding: '0.5rem 0' }}>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0.25rem 0.5rem' }}>
-                        Network: {targetNetwork.chainName}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        disconnectWallet();
-                        setWalletDropdownOpen(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.5rem 0.75rem',
-                        background: 'rgba(244, 63, 94, 0.1)',
-                        color: '#fb7185',
-                        border: '1px solid rgba(244, 63, 94, 0.2)',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        fontSize: '0.82rem',
-                        fontWeight: '600',
-                      }}
-                    >
-                      <LogOut size={14} /> Disconnect Wallet
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Link
-                  to="/campaigns"
-                  className="btn btn-primary"
-                  style={{
-                    padding: '0.45rem 0.85rem',
-                    fontSize: '0.82rem',
-                    fontWeight: '700',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                  }}
-                >
-                  <Smartphone size={14} />
-                  <span>Donate with UPI</span>
-                </Link>
-
-                <button
-                  onClick={connectWallet}
-                  disabled={isConnecting}
-                  className="btn btn-secondary"
-                  style={{ padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
-                  title="Connect authorized charity or admin wallet"
-                >
-                  <Wallet size={14} />
-                  <span>Charity Login</span>
-                </button>
-              </div>
-            )}
-
-            {/* Mobile Hamburger Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="mobile-hamburger"
+          {isAdmin && (
+            <Link
+              to="/admin"
               style={{
-                display: 'none',
-                background: 'transparent',
-                border: 'none',
-                color: '#ffffff',
-                cursor: 'pointer',
-                padding: '0.4rem',
+                padding: '0.45rem 0.8rem',
+                fontSize: '0.88rem',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-sm)',
+                color: isActive('/admin') ? '#c084fc' : '#e9d5ff',
+                background: isActive('/admin') ? 'rgba(168, 85, 247, 0.15)' : 'transparent',
               }}
             >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-        </div>
+              Admin Monitor
+            </Link>
+          )}
+        </nav>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div
-            style={{
-              padding: '1rem 1.5rem 1.5rem',
-              background: '#0a0e1a',
-              borderTop: '1px solid var(--border-subtle)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.5rem',
-            }}
-          >
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                onClick={() => setMobileMenuOpen(false)}
+        {/* Right Actions: Role Switcher & Donate Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* Role Switcher Pill */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '9999px',
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid var(--border-subtle)',
+                color: currentRoleConfig.color,
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+              title="Switch user perspective for evaluation"
+            >
+              {currentRoleConfig.icon}
+              <span>{currentRoleConfig.label}</span>
+              <ChevronDown size={14} color="#94a3b8" />
+            </button>
+
+            {roleDropdownOpen && (
+              <div
                 style={{
-                  padding: '0.75rem 1rem',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.95rem',
-                  color: isActive(link.path) ? '#ffffff' : 'var(--text-secondary)',
-                  background: isActive(link.path) ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                  position: 'absolute',
+                  right: 0,
+                  marginTop: '0.5rem',
+                  width: '210px',
+                  background: '#0f172a',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
+                  padding: '0.5rem',
+                  zIndex: 60,
                 }}
               >
-                {link.name}
-              </Link>
-            ))}
-          </div>
-        )}
-      </header>
+                <div style={{
+                  padding: '0.35rem 0.5rem',
+                  fontSize: '0.72rem',
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  fontWeight: '700',
+                }}>
+                  Switch Perspective
+                </div>
 
-      {/* Global CSS responsive hook for mobile nav */}
+                <button
+                  onClick={() => { switchRole('donor'); setRoleDropdownOpen(false); }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.65rem',
+                    background: isDonor ? 'rgba(59, 130, 246, 0.12)' : 'transparent',
+                    color: isDonor ? '#60a5fa' : '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <Heart size={14} color="#60a5fa" />
+                  <span>Donor Hub</span>
+                </button>
+
+                <button
+                  onClick={() => { switchRole('charity'); setRoleDropdownOpen(false); }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.65rem',
+                    background: isCharity ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                    color: isCharity ? '#34d399' : '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <Building2 size={14} color="#34d399" />
+                  <span>Charity Portal</span>
+                </button>
+
+                <button
+                  onClick={() => { switchRole('admin'); setRoleDropdownOpen(false); }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.65rem',
+                    background: isAdmin ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
+                    color: isAdmin ? '#c084fc' : '#ffffff',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <Lock size={14} color="#c084fc" />
+                  <span>Admin Auditor</span>
+                </button>
+
+                <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '0.4rem 0' }} />
+
+                <Link
+                  to="/charity/register"
+                  onClick={() => setRoleDropdownOpen(false)}
+                  style={{
+                    display: 'block',
+                    padding: '0.45rem 0.65rem',
+                    fontSize: '0.78rem',
+                    color: '#94a3b8',
+                  }}
+                >
+                  + Register New Charity
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Action Button */}
+          <Link
+            to="/campaigns"
+            className="btn btn-primary btn-sm"
+            style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              border: 'none',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+            }}
+          >
+            <Heart size={14} fill="#ffffff" />
+            <span>Donate Now</span>
+          </Link>
+
+          {/* Mobile Hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="mobile-hamburger"
+            style={{
+              display: 'none',
+              background: 'transparent',
+              border: 'none',
+              color: '#ffffff',
+              cursor: 'pointer',
+              padding: '0.4rem',
+            }}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div style={{
+          padding: '1rem 1.5rem',
+          background: '#0a0e1a',
+          borderTop: '1px solid var(--border-subtle)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+        }}>
+          {navLinks.map((link) => (
+            <Link
+              key={link.path}
+              to={link.path}
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                padding: '0.6rem 0.75rem',
+                fontSize: '0.9rem',
+                color: isActive(link.path) ? '#ffffff' : 'var(--text-secondary)',
+              }}
+            >
+              {link.name}
+            </Link>
+          ))}
+
+          <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '0.5rem 0' }} />
+
+          <Link
+            to="/dashboard"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', color: '#60a5fa' }}
+          >
+            Donor Dashboard
+          </Link>
+          <Link
+            to="/charity/dashboard"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', color: '#34d399' }}
+          >
+            Charity Portal
+          </Link>
+          <Link
+            to="/admin"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', color: '#c084fc' }}
+          >
+            Admin Monitoring
+          </Link>
+          <Link
+            to="/charity/register"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ padding: '0.6rem 0.75rem', fontSize: '0.9rem', color: '#fbbf24' }}
+          >
+            Register Charity
+          </Link>
+        </div>
+      )}
+
       <style>{`
-        @media (max-width: 900px) {
+        @media (max-width: 960px) {
           .desktop-nav { display: none !important; }
           .mobile-hamburger { display: block !important; }
         }
       `}</style>
-    </>
+    </header>
   );
 }

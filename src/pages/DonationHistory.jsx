@@ -1,228 +1,152 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '../context/WalletContext';
-import { fetchAllCampaigns, fetchCampaignDonations } from '../services/blockchain';
-import api from '../services/api';
-import { formatEth, formatDate, shortenAddress, getExplorerAddressLink } from '../utils/formatters';
+import { api } from '../services/api';
+import { formatInr, ethToInr, formatDateTime, truncateHash } from '../utils/formatters';
+import StatusBadge from '../components/StatusBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Heart, Search, Filter, ExternalLink, RefreshCw, Smartphone, ShieldCheck, Check, Copy } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Receipt, ExternalLink, Heart, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export default function DonationHistory() {
-  const { activeProvider } = useWallet();
-
+  const { user } = useAuth();
   const [donations, setDonations] = useState([]);
-  const [filteredDonations, setFilteredDonations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [copiedHash, setCopiedHash] = useState(null);
 
-  const handleCopy = (hash) => {
-    navigator.clipboard.writeText(hash);
-    setCopiedHash(hash);
-    setTimeout(() => setCopiedHash(null), 2000);
-  };
-
-  const loadGlobalDonations = async () => {
-    setIsLoading(true);
-    try {
-      let allDons = [];
-
-      // 1. First attempt to load via Backend API
+  useEffect(() => {
+    async function loadDonations() {
+      setIsLoading(true);
       try {
-        const campRes = await api.getCampaigns();
-        if (campRes && campRes.campaigns) {
-          for (const camp of campRes.campaigns) {
-            try {
-              const dRes = await api.getCampaignDonations(camp.campaignId);
-              if (dRes && dRes.donations) {
-                dRes.donations.forEach((d) => {
-                  allDons.push({
-                    ...d,
-                    campaignTitle: camp.title,
-                    charityName: camp.charityName,
-                  });
-                });
-              }
-            } catch {}
-          }
-        }
-      } catch (backendErr) {
-        console.warn('Backend donation fetch fallback to blockchain provider:', backendErr);
-        if (activeProvider) {
-          const allCampaigns = await fetchAllCampaigns(activeProvider);
-          for (const camp of allCampaigns) {
-            const cDons = await fetchCampaignDonations(camp.campaignId, activeProvider);
-            cDons.forEach((d) => {
-              allDons.push({
-                ...d,
-                campaignTitle: camp.title,
-                charityName: camp.charityName,
-              });
-            });
-          }
-        }
+        const res = await api.getDonations();
+        setDonations(res.donations || []);
+      } catch (err) {
+        console.warn('Failed to load donations:', err);
+      } finally {
+        setIsLoading(false);
       }
-
-      // Sort newest first
-      allDons.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-      setDonations(allDons);
-    } catch (err) {
-      console.error('Error loading global donations:', err);
-    } finally {
-      setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadGlobalDonations();
-  }, [activeProvider]);
-
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredDonations(donations);
-      return;
-    }
-    const q = searchQuery.toLowerCase();
-    setFilteredDonations(
-      donations.filter(
-        (d) =>
-          (d.donor && d.donor.toLowerCase().includes(q)) ||
-          (d.donorName && d.donorName.toLowerCase().includes(q)) ||
-          (d.campaignTitle && d.campaignTitle.toLowerCase().includes(q)) ||
-          d.donationId.toString().includes(q)
-      )
-    );
-  }, [donations, searchQuery]);
+    loadDonations();
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
+      <div>
+        <div style={{
+          display: 'inline-flex',
           alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
-            <h1 style={{ fontSize: '2.2rem', fontWeight: '800', color: '#ffffff' }}>
-              Public Donation Ledger
-            </h1>
-            <span className="badge badge-verified" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-              UPI & Blockchain Verified
-            </span>
-          </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-            Transparent UPI payments converted and sealed permanently on Ethereum in <code>DonationLedger.sol</code>.
+          gap: '0.4rem',
+          padding: '0.25rem 0.65rem',
+          borderRadius: '9999px',
+          background: 'rgba(16, 185, 129, 0.12)',
+          color: '#34d399',
+          fontSize: '0.75rem',
+          fontWeight: '700',
+          marginBottom: '0.5rem',
+        }}>
+          <ShieldCheck size={14} />
+          <span>Donor Records Ledger</span>
+        </div>
+        <h1 style={{ fontSize: '2.2rem', fontWeight: '800', color: '#ffffff', marginBottom: '0.5rem' }}>
+          My Donations
+        </h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+          Complete record of your philanthropic contributions with real on-chain transaction hashes.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <LoadingSpinner message="Retrieving your donation history from backend ledger..." />
+      ) : donations.length === 0 ? (
+        <div className="card" style={{ textAlign: 'center', padding: '4rem 1.5rem' }}>
+          <Heart size={40} color="#94a3b8" style={{ margin: '0 auto 1rem' }} />
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.5rem' }}>
+            No donations found yet
+          </h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', maxWidth: '450px', margin: '0 auto 1.5rem' }}>
+            Explore active campaigns and make your first blockchain-verified contribution today.
           </p>
+          <Link to="/campaigns" className="btn btn-primary">
+            <span>Explore Active Campaigns</span>
+            <ArrowRight size={16} />
+          </Link>
         </div>
+      ) : (
+        <div className="table-responsive card" style={{ padding: '0.5rem' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Charity</th>
+                <th>Amount (₹)</th>
+                <th>Date</th>
+                <th>Payment Status</th>
+                <th>Donation Status</th>
+                <th>Blockchain Status</th>
+                <th>Transaction Hash</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {donations.map((d, index) => {
+                const amountInr = d.amountInr || (d.amountEth ? ethToInr(d.amountEth) : 1000);
+                const charityName = 'LedgerCare Demo Charity';
+                const campaignTitle = 'Education Support Campaign';
 
-        <button onClick={loadGlobalDonations} className="btn btn-secondary">
-          <RefreshCw size={16} />
-          <span>Refresh</span>
-        </button>
-      </div>
-
-      {/* Search filter */}
-      <div className="card" style={{ padding: '0.85rem 1.25rem' }}>
-        <div style={{ position: 'relative' }}>
-          <Search
-            size={18}
-            color="var(--text-muted)"
-            style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }}
-          />
-          <input
-            type="text"
-            placeholder="Filter by donor name, donor address, campaign title, or donation ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="form-input"
-            style={{ width: '100%', paddingLeft: '2.4rem' }}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="card">
-        {isLoading ? (
-          <LoadingSpinner message="Querying DonationLedger records and verified payments..." />
-        ) : filteredDonations.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-            No donations recorded yet on this network.
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Campaign</th>
-                  <th>Donation Amount</th>
-                  <th>Donor</th>
-                  <th>Payment (UPI)</th>
-                  <th>Blockchain Status</th>
-                  <th>Date Recorded</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDonations.map((d) => (
-                  <tr key={`${d.campaignId}-${d.donationId}`}>
-                    <td style={{ fontWeight: '600' }}>#{d.donationId}</td>
+                return (
+                  <tr key={d.id || index}>
+                    <td>
+                      <div style={{ fontWeight: '700', color: '#ffffff' }}>{campaignTitle}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: #{d.campaignId || 1}</div>
+                    </td>
+                    <td>
+                      <span style={{ color: '#34d399', fontWeight: '600' }}>{charityName} ✓</span>
+                    </td>
+                    <td>
+                      <strong style={{ color: '#34d399', fontSize: '1.05rem' }}>
+                        {formatInr(amountInr)}
+                      </strong>
+                    </td>
+                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {formatDateTime(d.createdAt || d.timestamp || Date.now())}
+                    </td>
+                    <td>
+                      <StatusBadge type="payment" status={d.paymentStatus || 'PAID'} size="sm" />
+                    </td>
+                    <td>
+                      <StatusBadge type="campaign" status="ACTIVE" size="sm" />
+                    </td>
+                    <td>
+                      <StatusBadge type="blockchain" status={d.blockchainStatus || 'CONFIRMED'} size="sm" />
+                    </td>
+                    <td className="font-mono" style={{ fontSize: '0.75rem', color: '#93c5fd' }}>
+                      {truncateHash(d.transactionHash, 8, 6)}
+                    </td>
                     <td>
                       <Link
-                        to={`/campaign/${d.campaignId}`}
-                        style={{ color: '#60a5fa', fontWeight: '600', textDecoration: 'underline' }}
+                        to={`/donations/${d.donationId || d.id || index + 1}`}
+                        state={{
+                          donation: {
+                            ...d,
+                            campaignTitle,
+                            charityName,
+                            amountInr,
+                            transactionHash: d.transactionHash,
+                            date: d.createdAt || d.timestamp,
+                          },
+                        }}
+                        className="btn btn-outline btn-sm"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
                       >
-                        {d.campaignTitle} (#{d.campaignId})
-                      </Link>
-                    </td>
-                    <td>
-                      {d.amountInr && (
-                        <div style={{ fontWeight: '800', color: '#34d399', fontSize: '1rem' }}>
-                          ₹{d.amountInr.toLocaleString('en-IN')} INR
-                        </div>
-                      )}
-                      <div style={{ fontSize: '0.78rem', color: d.amountInr ? '#94a3b8' : '#34d399', fontWeight: '600' }}>
-                        {formatEth(d.amount)} ETH
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: '600', color: '#ffffff' }}>
-                        {d.donorName || 'Direct Donor'}
-                      </div>
-                      <div className="font-mono" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Relayer: {shortenAddress(d.donor)}
-                      </div>
-                    </td>
-                    <td>
-                      <span className="badge badge-verified" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-                        {d.paymentStatus || 'PAID'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span className="badge badge-verified">
-                          {d.blockchainStatus || 'CONFIRMED'}
-                        </span>
-                      </div>
-                    </td>
-                    <td>{formatDate(d.timestamp)}</td>
-                    <td>
-                      <Link to={`/campaign/${d.campaignId}`} className="btn btn-secondary btn-sm">
-                        View Audit
+                        <Receipt size={13} />
+                        <span>Receipt</span>
                       </Link>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

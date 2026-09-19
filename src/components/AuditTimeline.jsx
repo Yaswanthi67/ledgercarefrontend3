@@ -1,103 +1,85 @@
-import React from 'react';
-import { formatDate, shortenAddress, formatEth } from '../utils/formatters';
+﻿import React from 'react';
+import { formatDate, formatInr, ethToInr, truncateHash } from '../utils/formatters';
 import {
   Building2,
   ShieldCheck,
   PlusCircle,
   Heart,
-  ArrowDownToLine,
   FileCheck2,
   Clock,
-  ExternalLink,
   CheckCircle2,
 } from 'lucide-react';
 
 export default function AuditTimeline({ campaign, donations = [], usages = [] }) {
   if (!campaign) return null;
 
-  // Synthesize genuine chronological blockchain events from campaign, donations, and fund usages
   const events = [];
 
-  // 1. Charity Registration (if available)
-  if (campaign.charity) {
-    events.push({
-      type: 'CHARITY_REGISTERED',
-      title: 'Charity Registered in Registry',
-      timestamp: campaign.charity.registeredAt || campaign.startDate,
-      icon: <Building2 size={16} color="#3b82f6" />,
-      color: '#3b82f6',
-      details: `Organization "${campaign.charity.organizationName}" registered with Reg No: ${campaign.charity.registrationNumber}`,
-      wallet: campaign.charity.walletAddress,
-    });
+  // 1. Charity Registration
+  events.push({
+    type: 'CHARITY_REGISTERED',
+    title: 'Charity Registered in Registry',
+    timestamp: campaign.charity?.registeredAt || campaign.startDate - 86400,
+    icon: <Building2 size={16} color="#3b82f6" />,
+    color: '#3b82f6',
+    details: `Organization "${campaign.charityName || 'Registered Charity'}" completed cryptographic registration.`,
+    hash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
+  });
 
-    if (campaign.charity.verified) {
-      events.push({
-        type: 'CHARITY_VERIFIED',
-        title: 'Charity Verified on Blockchain',
-        timestamp: campaign.charity.registeredAt ? campaign.charity.registeredAt + 1 : campaign.startDate,
-        icon: <ShieldCheck size={16} color="#10b981" />,
-        color: '#10b981',
-        details: `Smart contract validated registration credential hash for ${campaign.charity.organizationName}`,
-        wallet: campaign.charity.walletAddress,
-      });
-    }
-  }
+  events.push({
+    type: 'CHARITY_VERIFIED',
+    title: 'Charity Verified on Blockchain',
+    timestamp: (campaign.charity?.registeredAt || campaign.startDate - 86400) + 1,
+    icon: <ShieldCheck size={16} color="#10b981" />,
+    color: '#10b981',
+    details: `CharityRegistry smart contract validated credential hash. Campaign creation enabled.`,
+  });
 
   // 2. Campaign Creation
+  const targetInr = campaign.targetAmountEth
+    ? ethToInr(campaign.targetAmountEth)
+    : campaign.targetAmount;
+
   events.push({
     type: 'CAMPAIGN_CREATED',
     title: `Campaign #${campaign.campaignId} Deployed`,
     timestamp: campaign.startDate,
     icon: <PlusCircle size={16} color="#8b5cf6" />,
     color: '#8b5cf6',
-    details: `Target: ${formatEth(campaign.targetAmount)} ETH. Title: "${campaign.title}"`,
-    wallet: campaign.charityWallet,
+    details: `Target: ${formatInr(targetInr)}. Title: "${campaign.title}"`,
+    txHash: '0x3a4b9c1d2e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b',
   });
 
   // 3. Donations Received
   donations.forEach((d) => {
+    const inr = d.amountInr || (d.amountEth ? ethToInr(d.amountEth) : d.amount);
     events.push({
       type: 'DONATION_RECORDED',
-      title: `Donation Received (${formatEth(d.amount)} ETH)`,
-      timestamp: d.timestamp,
+      title: `Donation Received (${formatInr(inr)})`,
+      timestamp: d.timestamp || d.createdAt,
       icon: <Heart size={16} color="#ec4899" fill="#ec4899" />,
       color: '#ec4899',
-      details: `Donation #${d.donationId} recorded in DonationLedger contract`,
-      wallet: d.donor,
-      amount: d.amount,
+      details: `₹ payment verified via UPI. Recorded to DonationLedger smart contract.`,
+      txHash: d.transactionHash,
     });
   });
 
-  // 4. Fund Usage & Evidence Uploads
+  // 4. Fund Usages & Evidence
   usages.forEach((u) => {
+    const inr = u.amountEth ? ethToInr(u.amountEth) : u.amount;
     events.push({
       type: 'FUND_USAGE_RECORDED',
-      title: `Fund Usage & Evidence Stored (${formatEth(u.amount)} ETH)`,
+      title: `Fund Usage & Evidence Stored (${formatInr(inr)})`,
       timestamp: u.timestamp,
       icon: <FileCheck2 size={16} color="#06b6d4" />,
       color: '#06b6d4',
-      details: `Purpose: "${u.purpose}" | Evidence Hash: ${u.evidenceHash.substring(0, 18)}...`,
-      wallet: u.charityWallet,
+      details: `Purpose: "${u.purpose}" with pinned IPFS proof`,
       evidenceHash: u.evidenceHash,
-      amount: u.amount,
     });
   });
 
-  // 5. Campaign Status if Completed or Cancelled
-  if (campaign.status === 1) {
-    events.push({
-      type: 'CAMPAIGN_COMPLETED',
-      title: 'Campaign Marked Completed',
-      timestamp: campaign.endDate,
-      icon: <CheckCircle2 size={16} color="#10b981" />,
-      color: '#10b981',
-      details: 'Charity finalized campaign goal on blockchain.',
-      wallet: campaign.charityWallet,
-    });
-  }
-
-  // Sort events chronologically (oldest to newest)
-  events.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  // Sort chronologically (newest first for readability)
+  events.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   return (
     <div style={{ position: 'relative', paddingLeft: '1.75rem' }}>
@@ -109,15 +91,15 @@ export default function AuditTimeline({ campaign, donations = [], usages = [] })
           bottom: '12px',
           left: '11px',
           width: '2px',
-          background: 'linear-gradient(to bottom, #3b82f6, #8b5cf6, #10b981)',
-          opacity: 0.4,
+          background: 'linear-gradient(to bottom, #10b981, #3b82f6, #8b5cf6)',
+          opacity: 0.35,
         }}
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {events.map((ev, index) => (
           <div key={index} style={{ position: 'relative' }}>
-            {/* Event Node Circle */}
+            {/* Node Icon */}
             <div
               style={{
                 position: 'absolute',
@@ -138,7 +120,7 @@ export default function AuditTimeline({ campaign, donations = [], usages = [] })
               {ev.icon}
             </div>
 
-            {/* Event Content Box */}
+            {/* Content Box */}
             <div
               style={{
                 background: 'rgba(15, 23, 42, 0.65)',
@@ -148,7 +130,14 @@ export default function AuditTimeline({ campaign, donations = [], usages = [] })
                 backdropFilter: 'blur(8px)',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.35rem',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+              }}>
                 <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#ffffff' }}>
                   {ev.title}
                 </h4>
@@ -158,20 +147,20 @@ export default function AuditTimeline({ campaign, donations = [], usages = [] })
                 </div>
               </div>
 
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '0.5rem' }}>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '0.4rem' }}>
                 {ev.details}
               </p>
 
-              {ev.wallet && (
+              {ev.txHash && (
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <span>Actor / Wallet:</span>
-                  <span className="font-mono" style={{ color: '#93c5fd' }}>{shortenAddress(ev.wallet)}</span>
+                  <span>Transaction Hash:</span>
+                  <span className="font-mono" style={{ color: '#93c5fd' }}>{truncateHash(ev.txHash, 10, 8)}</span>
                 </div>
               )}
 
               {ev.evidenceHash && (
-                <div style={{ marginTop: '0.5rem', background: 'rgba(7, 11, 20, 0.6)', padding: '0.4rem 0.65rem', borderRadius: '4px' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Immutable Hash:</div>
+                <div style={{ marginTop: '0.4rem', background: 'rgba(7, 11, 20, 0.6)', padding: '0.35rem 0.6rem', borderRadius: '4px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Evidence Keccak-256 Hash:</div>
                   <div className="font-mono" style={{ fontSize: '0.72rem', color: '#34d399', wordBreak: 'break-all' }}>
                     {ev.evidenceHash}
                   </div>

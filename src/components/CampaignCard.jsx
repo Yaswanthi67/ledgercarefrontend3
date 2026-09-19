@@ -1,150 +1,204 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link } from 'react-router-dom';
 import CampaignProgress from './CampaignProgress';
-import { formatDate, shortenAddress } from '../utils/formatters';
-import { Building2, Calendar, Heart, ArrowUpRight, CheckCircle, Clock } from 'lucide-react';
+import StatusBadge from './StatusBadge';
+import { getDaysRemaining } from '../utils/formatters';
+import { ShieldCheck, Users, Calendar, ArrowRight, Heart } from 'lucide-react';
 
 export default function CampaignCard({ campaign, onDonateClick }) {
   if (!campaign) return null;
 
-  const {
-    campaignId,
-    title,
-    description,
-    charityName,
-    charityWallet,
-    targetAmount,
-    raisedAmount,
-    withdrawnAmount,
-    startDate,
-    endDate,
-    status,
-  } = campaign;
+  const campaignId = campaign.campaignId || campaign.id;
+  const daysLeft = getDaysRemaining(campaign.endDate);
+  const statusStr = campaign.status === 0 || campaign.status === 'Active' ? 'Active' : 'Completed';
 
-  const getStatusBadge = () => {
-    switch (status) {
-      case 0:
-        return <span className="badge badge-active">Active</span>;
-      case 1:
-        return <span className="badge badge-completed">Completed</span>;
-      case 2:
-        return <span className="badge badge-cancelled">Cancelled</span>;
-      default:
-        return <span className="badge">Unknown</span>;
-    }
-  };
+  // Default images based on category / id
+  const fallbackImages = [
+    'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1532629345422-7515f3d16bb9?w=800&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&auto=format&fit=crop&q=80',
+  ];
+  const imageUrl =
+    campaign.imageUrl ||
+    campaign.image ||
+    fallbackImages[(Number(campaignId) || 1) % fallbackImages.length];
 
-  const isFundable = status === 0;
+  const category = campaign.category || 'Education & Welfare';
 
   return (
-    <div className="card card-interactive" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-        <span style={{
-          fontSize: '0.75rem',
-          fontWeight: '700',
-          color: 'var(--text-muted)',
-          background: 'rgba(255, 255, 255, 0.05)',
-          padding: '0.2rem 0.55rem',
-          borderRadius: 'var(--radius-sm)',
-        }}>
-          #{campaignId}
-        </span>
-        {getStatusBadge()}
-      </div>
-
-      {/* Title & Description */}
-      <h3 style={{
-        fontSize: '1.2rem',
-        fontWeight: '700',
-        color: '#ffffff',
-        marginBottom: '0.5rem',
-        lineHeight: 1.35,
-      }}>
-        {title}
-      </h3>
-
-      <p style={{
-        fontSize: '0.86rem',
-        color: 'var(--text-secondary)',
-        lineHeight: 1.5,
-        marginBottom: '1.25rem',
-        display: '-webkit-box',
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: 'vertical',
-        overflow: 'hidden',
-        flex: 1,
-      }}>
-        {description}
-      </p>
-
-      {/* Charity Info */}
-      <div style={{
+    <div
+      className="card card-interactive"
+      style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        padding: '0.65rem 0.85rem',
-        borderRadius: 'var(--radius-sm)',
-        background: 'rgba(15, 23, 42, 0.6)',
-        border: '1px solid var(--border-subtle)',
-        marginBottom: '1.25rem',
-        fontSize: '0.8rem',
-      }}>
-        <Building2 size={16} color="#60a5fa" />
-        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          <span style={{ fontWeight: '600', color: '#ffffff' }}>{charityName || 'Verified Charity'}</span>
-          <span className="font-mono" style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
-            ({shortenAddress(charityWallet)})
+        flexDirection: 'column',
+        padding: 0,
+        overflow: 'hidden',
+        height: '100%',
+      }}
+    >
+      {/* Campaign Image with Badges */}
+      <div style={{ position: 'relative', height: '190px', width: '100%', overflow: 'hidden' }}>
+        <img
+          src={imageUrl}
+          alt={campaign.title}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transition: 'transform 0.3s ease',
+          }}
+          onError={(e) => {
+            e.target.src = fallbackImages[0];
+          }}
+        />
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(7,11,20,0.85) 100%)',
+        }} />
+
+        {/* Top Badges */}
+        <div style={{
+          position: 'absolute',
+          top: '0.85rem',
+          left: '0.85rem',
+          right: '0.85rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <span style={{
+            fontSize: '0.72rem',
+            fontWeight: '700',
+            padding: '0.2rem 0.6rem',
+            borderRadius: '9999px',
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
+            color: '#93c5fd',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+          }}>
+            {category}
+          </span>
+          <StatusBadge type="campaign" status={statusStr} size="sm" />
+        </div>
+
+        {/* Verified Charity Tag */}
+        <div style={{
+          position: 'absolute',
+          bottom: '0.75rem',
+          left: '0.85rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          background: 'rgba(6, 78, 59, 0.8)',
+          backdropFilter: 'blur(6px)',
+          padding: '0.2rem 0.55rem',
+          borderRadius: '9999px',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+        }}>
+          <ShieldCheck size={13} color="#34d399" />
+          <span style={{ fontSize: '0.72rem', fontWeight: '700', color: '#6ee7b7' }}>
+            {campaign.charityName || 'Verified Charity'} ✓
           </span>
         </div>
       </div>
 
-      {/* Progress */}
-      <div style={{ marginBottom: '1.25rem' }}>
-        <CampaignProgress
-          raisedAmount={raisedAmount}
-          targetAmount={targetAmount}
-          withdrawnAmount={withdrawnAmount}
-        />
-      </div>
-
-      {/* Dates */}
+      {/* Card Content */}
       <div style={{
+        padding: '1.25rem',
         display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: '0.75rem',
-        color: 'var(--text-muted)',
-        borderTop: '1px solid var(--border-subtle)',
-        paddingTop: '0.75rem',
-        marginBottom: '1.25rem',
+        flexDirection: 'column',
+        flex: 1,
+        gap: '1rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <Clock size={13} />
-          <span>Ends: {formatDate(endDate)}</span>
+        <div>
+          <h3 style={{
+            fontSize: '1.1rem',
+            fontWeight: '700',
+            color: '#ffffff',
+            lineHeight: 1.4,
+            marginBottom: '0.4rem',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}>
+            {campaign.title}
+          </h3>
+          <p style={{
+            fontSize: '0.84rem',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}>
+            {campaign.description}
+          </p>
         </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: 'grid', gridTemplateColumns: isFundable ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
-        <Link
-          to={`/campaign/${campaignId}`}
-          className="btn btn-secondary"
-          style={{ width: '100%', fontSize: '0.85rem' }}
-        >
-          <span>View Details</span>
-          <ArrowUpRight size={15} />
-        </Link>
+        {/* Progress Bar in ₹ */}
+        <div style={{ marginTop: 'auto' }}>
+          <CampaignProgress
+            raisedAmount={campaign.raisedAmountEth || campaign.raisedAmount}
+            targetAmount={campaign.targetAmountEth || campaign.targetAmount}
+            isEth={Boolean(campaign.targetAmountEth)}
+          />
+        </div>
 
-        {isFundable && (
-          <button
-            onClick={() => onDonateClick && onDonateClick(campaign)}
-            className="btn btn-primary"
-            style={{ width: '100%', fontSize: '0.85rem' }}
+        {/* Meta Stats Row */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid var(--border-subtle)',
+          fontSize: '0.78rem',
+          color: 'var(--text-muted)',
+        }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Users size={14} color="#94a3b8" />
+            <span>{campaign.donorCount || 4} Donors</span>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Calendar size={14} color="#94a3b8" />
+            <span>{daysLeft > 0 ? `${daysLeft} days left` : 'Completed'}</span>
+          </span>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '0.65rem',
+          paddingTop: '0.25rem',
+        }}>
+          <Link
+            to={`/campaigns/${campaignId}`}
+            className="btn btn-secondary btn-sm"
+            style={{ width: '100%' }}
           >
-            <Heart size={15} fill="currentColor" />
-            <span>Donate with UPI</span>
+            <span>View Details</span>
+            <ArrowRight size={13} />
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => onDonateClick && onDonateClick(campaign)}
+            className="btn btn-primary btn-sm"
+            style={{
+              width: '100%',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              border: 'none',
+              boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)',
+            }}
+          >
+            <Heart size={13} fill="#ffffff" />
+            <span>Donate Now</span>
           </button>
-        )}
+        </div>
       </div>
     </div>
   );

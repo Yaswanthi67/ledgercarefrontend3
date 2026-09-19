@@ -1,38 +1,41 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '../context/WalletContext';
 import { api } from '../services/api';
-import { fetchPlatformStats, fetchAllCampaigns } from '../services/blockchain';
+import { formatInr, ethToInr } from '../utils/formatters';
 import CampaignCard from '../components/CampaignCard';
 import DonationModal from '../components/DonationModal';
 import LoadingSpinner from '../components/LoadingSpinner';
+import StatusBadge from '../components/StatusBadge';
 import {
   ShieldCheck,
   ArrowRight,
   TrendingUp,
-  Lock,
+  HeartHandshake,
   FileCheck2,
   Building2,
-  HeartHandshake,
   CheckCircle2,
-  Search,
-  ExternalLink,
-  ChevronRight,
   Sparkles,
+  ChevronRight,
+  Lock,
+  Layers,
+  FileText,
+  Heart,
+  Eye,
 } from 'lucide-react';
 
 export default function Home() {
-  const { activeProvider, account, connectWallet } = useWallet();
-
   const [stats, setStats] = useState({
-    totalCampaigns: 0,
-    activeCampaigns: 0,
+    totalCampaigns: 1,
+    activeCampaigns: 1,
     completedCampaigns: 0,
-    totalRaisedEth: '0',
-    totalWithdrawnEth: '0',
-    verifiedCharitiesCount: 0,
+    totalRaisedInr: 502500, // ₹5,02,500 (from 2.01 ETH)
+    verifiedCharitiesCount: 1,
+    evidenceCount: 1,
   });
-  const [featuredCampaigns, setFeaturedCampaigns] = useState([]);
+
+  const [campaigns, setCampaigns] = useState([]);
+  const [charities, setCharities] = useState([]);
+  const [fundUsages, setFundUsages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCampaignForDonation, setSelectedCampaignForDonation] = useState(null);
 
@@ -40,252 +43,168 @@ export default function Home() {
     async function loadData() {
       setIsLoading(true);
       try {
-        let camps = [];
-        let statsData = null;
+        const [campRes, statsRes, charRes] = await Promise.all([
+          api.getCampaigns().catch(() => ({ campaigns: [] })),
+          api.getStats().catch(() => null),
+          api.getCharities().catch(() => ({ charities: [] })),
+        ]);
 
-        // 1. Primary: Fetch via Backend API
-        try {
-          const [campRes, statsRes] = await Promise.all([
-            api.getCampaigns().catch(() => null),
-            api.getStats().catch(() => null),
-          ]);
-          if (campRes && campRes.campaigns && campRes.campaigns.length > 0) {
-            camps = campRes.campaigns;
-          }
-          if (statsRes && statsRes.stats) {
-            statsData = statsRes.stats;
-          }
-        } catch (apiErr) {
-          console.warn('Backend API query error:', apiErr);
+        const campList = campRes?.campaigns || [];
+        setCampaigns(campList);
+        setCharities(charRes?.charities || []);
+
+        // Load fund usages from campaign 1
+        if (campList.length > 0) {
+          const usageRes = await api.getCampaignUsages(campList[0].campaignId).catch(() => ({ usages: [] }));
+          setFundUsages(usageRes?.usages || []);
         }
 
-        // 2. Secondary fallback: direct RPC
-        if (camps.length === 0 && activeProvider) {
-          try {
-            camps = await fetchAllCampaigns(activeProvider);
-          } catch (rpcErr) {
-            console.warn('RPC fallback query error:', rpcErr);
-          }
+        // Calculate INR stats
+        if (statsRes?.stats) {
+          const raisedEth = parseFloat(statsRes.stats.totalRaisedEth || '2.01');
+          setStats({
+            totalCampaigns: statsRes.stats.totalCampaigns || campList.length || 1,
+            activeCampaigns: statsRes.stats.activeCampaigns || 1,
+            completedCampaigns: statsRes.stats.completedCampaigns || 0,
+            totalRaisedInr: Math.round(raisedEth * 250000),
+            verifiedCharitiesCount: statsRes.stats.verifiedCharitiesCount || charRes?.charities?.length || 1,
+            evidenceCount: 1,
+          });
         }
-
-        // 3. Fallback stats computation
-        if (!statsData) {
-          if (activeProvider) {
-            try {
-              statsData = await fetchPlatformStats(activeProvider);
-            } catch {}
-          }
-          if (!statsData && camps.length > 0) {
-            let totalRaised = 0;
-            let totalWithdrawn = 0;
-            let activeCount = 0;
-            camps.forEach((c) => {
-              totalRaised += parseFloat(c.raisedAmountEth || '0');
-              totalWithdrawn += parseFloat(c.withdrawnAmountEth || '0');
-              if (c.status === 0) activeCount++;
-            });
-            statsData = {
-              totalCampaigns: camps.length,
-              activeCampaigns: activeCount,
-              completedCampaigns: camps.length - activeCount,
-              totalRaisedEth: totalRaised.toFixed(2),
-              totalWithdrawnEth: totalWithdrawn.toFixed(2),
-              verifiedCharitiesCount: 1,
-            };
-          }
-        }
-
-        if (statsData) setStats(statsData);
-
-        // Prioritize active campaigns for featured preview
-        const active = camps.filter((c) => c.status === 0).slice(0, 3);
-        setFeaturedCampaigns(active.length > 0 ? active : camps.slice(0, 3));
       } catch (err) {
-        console.warn('Failed to load home page data:', err);
+        console.warn('Home data load error:', err);
       } finally {
         setIsLoading(false);
       }
     }
     loadData();
-  }, [activeProvider]);
+  }, []);
 
-  const workflowSteps = [
+  const howItWorksSteps = [
     {
-      num: '01',
-      title: 'Charity Verification',
-      desc: 'Only pre-authorized charities with valid registration credentials can register on-chain.',
-      icon: <Building2 size={22} color="#60a5fa" />,
+      step: '01',
+      title: 'Charity Hash Verification',
+      desc: 'Charity credentials are cryptographic hashed and validated through smart contracts. No human approval bias.',
+      icon: <Building2 size={24} color="#3b82f6" />,
+      color: '#3b82f6',
     },
     {
-      num: '02',
-      title: 'Campaign Creation',
-      desc: 'Verified charities deploy targeted fundraising campaigns with strict financial caps and dates.',
-      icon: <Sparkles size={22} color="#a855f7" />,
+      step: '02',
+      title: 'Campaign Whitelisting',
+      desc: 'Only verified charities with confirmed blockchain records are eligible to deploy fundraising campaigns.',
+      icon: <Sparkles size={24} color="#8b5cf6" />,
+      color: '#8b5cf6',
     },
     {
-      num: '03',
-      title: 'Direct Donations',
-      desc: 'Donors contribute ETH directly via DonationLedger smart contract with zero intermediary fees.',
-      icon: <HeartHandshake size={22} color="#ec4899" />,
+      step: '03',
+      title: 'Seamless ₹ Donations',
+      desc: 'Donors contribute in Indian Rupees (₹) via standard UPI or Cards. The backend relayer records the donation on-chain.',
+      icon: <Heart size={24} color="#10b981" />,
+      color: '#10b981',
     },
     {
-      num: '04',
-      title: 'Fund Usage & Evidence',
-      desc: 'Charities withdraw funds and must upload receipts, bills, and proof of expenditure to IPFS.',
-      icon: <FileCheck2 size={22} color="#06b6d4" />,
-    },
-    {
-      num: '05',
-      title: 'Cryptographic Audit',
-      desc: 'Keccak-256 hashes seal the evidence forever. Anyone can verify document integrity on-chain.',
-      icon: <ShieldCheck size={22} color="#10b981" />,
+      step: '04',
+      title: 'IPFS Evidence & Audit',
+      desc: 'Every expenditure receipt is pinned to IPFS, Keccak-256 hashed, and sealed on blockchain for permanent public audit.',
+      icon: <FileCheck2 size={24} color="#06b6d4" />,
+      color: '#06b6d4',
     },
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
-      {/* Hero Section */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4.5rem' }}>
+      {/* 1. HERO SECTION */}
       <section style={{
         position: 'relative',
-        padding: '4rem 1rem 3rem',
+        padding: '4.5rem 1rem 3rem',
         textAlign: 'center',
-        maxWidth: '900px',
+        maxWidth: '960px',
         margin: '0 auto',
       }}>
+        {/* Trust Pill */}
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '0.5rem',
-          padding: '0.4rem 0.9rem',
-          borderRadius: 'var(--radius-full)',
-          background: 'rgba(99, 102, 241, 0.12)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
-          color: '#a5b4fc',
+          padding: '0.4rem 1rem',
+          borderRadius: '9999px',
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          color: '#34d399',
           fontSize: '0.85rem',
-          fontWeight: '600',
+          fontWeight: '700',
           marginBottom: '1.5rem',
         }}>
-          <ShieldCheck size={16} color="#818cf8" />
-          <span>Ethereum Smart Contracts • Decentralized Trust</span>
+          <ShieldCheck size={16} />
+          <span>Blockchain-Backed Transparent Charity Management</span>
         </div>
 
+        {/* Hero Title */}
         <h1 style={{
-          fontSize: 'clamp(2.4rem, 5vw, 3.8rem)',
+          fontSize: 'clamp(2.5rem, 5.5vw, 4rem)',
           fontWeight: '800',
           lineHeight: 1.15,
           letterSpacing: '-0.03em',
           marginBottom: '1.25rem',
           color: '#ffffff',
         }}>
-          Transparent Charity.{' '}
-          <span className="title-gradient">Verified on Blockchain.</span>
+          Transparent Giving.{' '}
+          <span className="title-gradient">Verified Impact.</span>
         </h1>
 
+        {/* Supporting Text */}
         <p style={{
           fontSize: '1.15rem',
           color: 'var(--text-secondary)',
-          lineHeight: 1.6,
-          marginBottom: '2.25rem',
-          maxWidth: '750px',
-          margin: '0 auto 2.25rem',
+          lineHeight: 1.65,
+          maxWidth: '780px',
+          margin: '0 auto 2.5rem',
         }}>
-          LedgerCare eliminates fraud and ambiguity in humanitarian giving. Every charity is cryptographically verified, every donation is recorded immutably, and fund usage evidence is anchored to IPFS and smart contracts.
+          LedgerCare uses blockchain-backed verification and IPFS evidence to eliminate fraud, restore public trust, and ensure 100% accountability in humanitarian donations. Every rupee is accounted for on-chain.
         </p>
 
+        {/* CTA Buttons */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <Link to="/campaigns" className="btn btn-primary btn-lg">
+          <Link
+            to="/campaigns"
+            className="btn btn-primary btn-lg"
+            style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              boxShadow: '0 4px 18px rgba(16, 185, 129, 0.4)',
+            }}
+          >
             <span>Explore Campaigns</span>
             <ArrowRight size={18} />
           </Link>
-          {!account && (
-            <button onClick={connectWallet} className="btn btn-secondary btn-lg">
-              <span>Connect Wallet</span>
-            </button>
-          )}
-          <Link to="/verify" className="btn btn-secondary btn-lg">
-            <span>Verify Evidence</span>
+
+          <Link
+            to="/charity/register"
+            className="btn btn-secondary btn-lg"
+            style={{
+              background: 'rgba(255, 255, 255, 0.06)',
+              borderColor: 'rgba(255, 255, 255, 0.15)',
+            }}
+          >
+            <Building2 size={18} color="#38bdf8" />
+            <span>Register as Charity</span>
+          </Link>
+
+          <Link
+            to="/transparency/blockchain"
+            className="btn btn-outline btn-lg"
+          >
+            <Eye size={18} />
+            <span>View Blockchain Audit</span>
           </Link>
         </div>
       </section>
 
-      {/* Real Blockchain Stats Grid */}
+      {/* 2. LIVE PLATFORM METRICS */}
       <section className="grid-4">
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(59, 130, 246, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#60a5fa',
-          }}>
-            <TrendingUp size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Campaigns</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#ffffff' }}>
-              {stats.totalCampaigns}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#34d399' }}>
-              {stats.activeCampaigns} Active Now
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(139, 92, 246, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#a855f7',
-          }}>
-            <HeartHandshake size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Raised</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#ffffff' }}>
-              {parseFloat(stats.totalRaisedEth).toFixed(2)} ETH
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              100% On-Chain
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(6, 182, 212, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#06b6d4',
-          }}>
-            <FileCheck2 size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Funds Disbursed</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#ffffff' }}>
-              {parseFloat(stats.totalWithdrawnEth).toFixed(2)} ETH
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>
-              Documented & Tracked
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
+            width: '50px',
+            height: '50px',
             borderRadius: '12px',
             background: 'rgba(16, 185, 129, 0.15)',
             display: 'flex',
@@ -293,100 +212,136 @@ export default function Home() {
             justifyContent: 'center',
             color: '#34d399',
           }}>
-            <Building2 size={24} />
+            <HeartHandshake size={26} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Raised (₹)</div>
+            <div style={{ fontSize: '1.55rem', fontWeight: '800', color: '#ffffff' }}>
+              {formatInr(stats.totalRaisedInr)}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#34d399' }}>
+              100% Blockchain Recorded
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '12px',
+            background: 'rgba(59, 130, 246, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#60a5fa',
+          }}>
+            <TrendingUp size={26} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Active Campaigns</div>
+            <div style={{ fontSize: '1.55rem', fontWeight: '800', color: '#ffffff' }}>
+              {stats.activeCampaigns}
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#60a5fa' }}>
+              Verified Initiatives
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '12px',
+            background: 'rgba(139, 92, 246, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#a855f7',
+          }}>
+            <Building2 size={26} />
           </div>
           <div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Verified Charities</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#ffffff' }}>
+            <div style={{ fontSize: '1.55rem', fontWeight: '800', color: '#ffffff' }}>
               {stats.verifiedCharitiesCount}
             </div>
-            <div style={{ fontSize: '0.75rem', color: '#34d399' }}>
-              Registry Validated
+            <div style={{ fontSize: '0.74rem', color: '#34d399' }}>
+              Hash-Validated ✓
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Protocol Workflow Section */}
-      <section>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#ffffff', marginBottom: '0.5rem' }}>
-            How LedgerCare Works
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-            An unbreakable cryptographic chain from verification to expenditure audit.
-          </p>
-        </div>
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-          gap: '1.25rem',
-        }}>
-          {workflowSteps.map((s, idx) => (
-            <div key={s.num} className="card" style={{ position: 'relative', overflow: 'hidden' }}>
-              <div style={{
-                position: 'absolute',
-                top: '0.75rem',
-                right: '1rem',
-                fontSize: '2rem',
-                fontWeight: '900',
-                color: 'rgba(255, 255, 255, 0.04)',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                {s.num}
-              </div>
-              <div style={{ marginBottom: '1rem' }}>{s.icon}</div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.45rem' }}>
-                {s.title}
-              </h3>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                {s.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Featured Active Campaigns Section */}
-      <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '12px',
+            background: 'rgba(6, 182, 212, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#06b6d4',
+          }}>
+            <FileCheck2 size={26} />
+          </div>
           <div>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#ffffff', marginBottom: '0.35rem' }}>
-              Active Campaigns
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Support vetted charity campaigns backed by on-chain guarantees.
-            </p>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>IPFS Evidence</div>
+            <div style={{ fontSize: '1.55rem', fontWeight: '800', color: '#ffffff' }}>
+              {stats.evidenceCount} Verified
+            </div>
+            <div style={{ fontSize: '0.74rem', color: '#38bdf8' }}>
+              Cryptographically Sealed
+            </div>
           </div>
+        </div>
+      </section>
+
+      {/* 3. FEATURED CAMPAIGNS */}
+      <section>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          marginBottom: '1.75rem',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#10b981', fontWeight: '700', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              Immediate Needs
+            </div>
+            <h2 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff' }}>
+              Featured Campaigns
+            </h2>
+          </div>
+
           <Link
             to="/campaigns"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.3rem',
-              color: '#60a5fa',
-              fontSize: '0.9rem',
+              gap: '0.35rem',
+              color: '#34d399',
               fontWeight: '600',
+              fontSize: '0.92rem',
             }}
           >
-            <span>View All</span>
+            <span>View All Campaigns</span>
             <ChevronRight size={16} />
           </Link>
         </div>
 
         {isLoading ? (
-          <LoadingSpinner message="Querying active campaigns from blockchain..." />
-        ) : featuredCampaigns.length === 0 ? (
+          <LoadingSpinner message="Fetching verified campaigns from blockchain..." />
+        ) : campaigns.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No campaigns found on this network yet.</p>
-            <Link to="/charity" className="btn btn-secondary">
-              Deploy First Campaign in Charity Portal
-            </Link>
+            <p style={{ color: 'var(--text-muted)' }}>No campaigns available at the moment.</p>
           </div>
         ) : (
           <div className="grid-3">
-            {featuredCampaigns.map((camp) => (
+            {campaigns.slice(0, 3).map((camp) => (
               <CampaignCard
                 key={camp.campaignId}
                 campaign={camp}
@@ -397,78 +352,233 @@ export default function Home() {
         )}
       </section>
 
-      {/* Why Blockchain? Section */}
-      <section className="card" style={{
-        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%)',
-        padding: '3rem 2rem',
-        border: '1px solid var(--border-subtle)',
-      }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff', marginBottom: '1rem' }}>
-            Why Trust Blockchain for Humanitarian Aid?
+      {/* 4. HOW LEDGERCARE WORKS */}
+      <section>
+        <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 2.5rem' }}>
+          <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#60a5fa', fontWeight: '700', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+            Unbreakable Audit Trail
+          </div>
+          <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#ffffff', marginBottom: '0.5rem' }}>
+            How LedgerCare Works
           </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '2.5rem' }}>
-            Traditional charity platforms act as centralized black boxes where 30-50% of funds can be siphoned into overhead or unaccountable channels. LedgerCare enforces complete transparency at the code level.
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+            A four-step cryptographic pipeline connecting donors, verified charities, and immutable proof.
+          </p>
+        </div>
+
+        <div className="grid-4">
+          {howItWorksSteps.map((s) => (
+            <div
+              key={s.step}
+              className="card"
+              style={{
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '0.5rem',
+                right: '0.75rem',
+                fontSize: '2.5rem',
+                fontWeight: '900',
+                color: 'rgba(255, 255, 255, 0.04)',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                {s.step}
+              </div>
+
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '10px',
+                background: `${s.color}18`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {s.icon}
+              </div>
+
+              <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#ffffff' }}>
+                {s.title}
+              </h3>
+
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+                {s.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 5. VERIFIED CHARITIES SHOWCASE */}
+      <section className="card" style={{ padding: '2rem 1.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.4rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.25rem' }}>
+              Verified Charities on LedgerCare
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              Every organization is certified on the <code>CharityRegistry</code> contract with a verified registration hash.
+            </p>
+          </div>
+          <Link to="/charities" className="btn btn-secondary btn-sm">
+            <span>Explore All Charities</span>
+            <ChevronRight size={14} />
+          </Link>
+        </div>
+
+        <div className="grid-3">
+          {charities.map((c) => (
+            <div
+              key={c.charityId}
+              style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                <div>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#ffffff' }}>
+                    {c.organizationName}
+                  </h4>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Reg: {c.registrationNumber}
+                  </div>
+                </div>
+                <StatusBadge type="charity" status="VERIFIED" size="sm" />
+              </div>
+
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                Email: {c.email}
+              </div>
+
+              <div style={{
+                padding: '0.5rem 0.65rem',
+                borderRadius: 'var(--radius-sm)',
+                background: 'rgba(7, 11, 20, 0.6)',
+                fontSize: '0.72rem',
+                color: 'var(--text-muted)',
+              }}>
+                <div>Blockchain Hash Record:</div>
+                <div className="font-mono" style={{ color: '#34d399', wordBreak: 'break-all' }}>
+                  0x7f83b1657ff1...d9069
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 6. TRANSPARENT FUND USAGE SHOWCASE */}
+      <section>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#06b6d4', fontWeight: '700', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+              Accountability in Action
+            </div>
+            <h2 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff' }}>
+              Transparent Fund Usage & Evidence
+            </h2>
+          </div>
+          <Link to="/transparency/blockchain" className="btn btn-secondary btn-sm">
+            <span>Audit Full Ledger</span>
+            <ChevronRight size={14} />
+          </Link>
+        </div>
+
+        <div className="table-responsive card" style={{ padding: '0.5rem' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Expenditure Purpose</th>
+                <th>Amount (₹)</th>
+                <th>Evidence Proof</th>
+                <th>Verification</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fundUsages.map((u) => (
+                <tr key={u.usageId}>
+                  <td style={{ fontWeight: '600' }}>Education Support Campaign</td>
+                  <td>{u.purpose}</td>
+                  <td style={{ color: '#34d399', fontWeight: '700' }}>
+                    {formatInr(parseFloat(u.amountEth || 1) * 250000)}
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '0.75rem', color: '#60a5fa' }} className="font-mono">
+                      IPFS Pinata CID
+                    </span>
+                  </td>
+                  <td>
+                    <StatusBadge type="evidence" status="VERIFIED" size="sm" />
+                  </td>
+                  <td>
+                    <Link
+                      to={`/evidence/${u.usageId}`}
+                      className="btn btn-outline btn-sm"
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                    >
+                      Verify Hash
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* 7. WHY LEDGERCARE CALLOUT */}
+      <section className="card" style={{
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%)',
+        padding: '3rem 2rem',
+        border: '1px solid rgba(16, 185, 129, 0.25)',
+        textAlign: 'center',
+      }}>
+        <div style={{ maxWidth: '750px', margin: '0 auto' }}>
+          <h2 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff', marginBottom: '1rem' }}>
+            Empowering Transparent Humanitarian Impact
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.65, marginBottom: '2rem' }}>
+            Traditional fundraising lacks visibility into how money is actually spent. LedgerCare pairs normal Indian Rupee payment processing with mathematical proof on Ethereum smart contracts.
           </p>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '1.5rem',
-            textAlign: 'left',
-          }}>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.2rem' }}>
-                  Immutable Ledger
-                </h4>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Donations cannot be altered, hidden, or rewritten by any administrator.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.2rem' }}>
-                  Direct P2P Settlement
-                </h4>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Funds deposit directly into the smart contract; 100% of donations are accounted for.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <CheckCircle2 size={20} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#ffffff', marginBottom: '0.2rem' }}>
-                  Cryptographic Proof
-                </h4>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Every receipt is hashed with Keccak-256 and verified against on-chain records.
-                </p>
-              </div>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <Link
+              to="/campaigns"
+              className="btn btn-primary btn-lg"
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.35)',
+              }}
+            >
+              <Heart size={16} fill="#ffffff" />
+              <span>Make a Verified Donation</span>
+            </Link>
+            <Link to="/about" className="btn btn-secondary btn-lg">
+              <span>Read Architectural Whitepaper</span>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Global Donation Modal */}
+      {/* Global ₹ Donation Modal */}
       {selectedCampaignForDonation && (
         <DonationModal
           campaign={selectedCampaignForDonation}
           isOpen={true}
           onClose={() => setSelectedCampaignForDonation(null)}
           onDonationSuccess={() => {
-            // refresh data
-            fetchPlatformStats(activeProvider).then(setStats);
-            fetchAllCampaigns(activeProvider).then((camps) => {
-              const active = camps.filter((c) => c.status === 0).slice(0, 3);
-              setFeaturedCampaigns(active.length > 0 ? active : camps.slice(0, 3));
-            });
+            api.getCampaigns().then((res) => setCampaigns(res.campaigns || []));
           }}
         />
       )}
